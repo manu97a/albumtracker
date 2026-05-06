@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useRef} from 'react';
 
 type StickerStatus = 'missing' | 'owned' | 'forTrade';
 
@@ -18,7 +18,33 @@ export default function StickerCard({
 }: StickerProps) {
   const [status, setStatus] = useState<StickerStatus>(initialStatus);
   const [tradeCount, setTradeCount] = useState(initialTradeCount);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const isLongPress = useRef(false);
+  const handleTouchStart = (e: React.TouchEvent) => {
+    isLongPress.current = false;
+    timerRef.current = setTimeout(() => {
+      isLongPress.current = true;
+      handleReset(e as any); // Marcamos como faltante al mantener presionado
+      
+      // Vibración sutil si el navegador lo soporta
+      if (typeof window !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate(50);
+      }
+    }, 500); // 500ms = medio segundo
+  };
 
+  const handleTouchEnd = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+  };
+
+  const handleTouchMove = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+  };
+
+  const customHandleTap = (e: any) => {
+    if (isLongPress.current) return; // Si fue un toque largo, ignoramos el tap normal
+    handleTap(e);
+  };
   // Enviamos el userId real a la base de datos
   const saveToDB = async (newStatus: StickerStatus, newCount: number) => {
     try {
@@ -87,16 +113,16 @@ export default function StickerCard({
 
   return (
     <div 
-      onClick={handleTap} 
+      onClick={customHandleTap} 
       onContextMenu={handleReset}
-      onTouchStart={(e) => {
-        if (e.touches.length > 1) handleReset(e as any); 
-      }}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onTouchMove={handleTouchMove}
       className={`${baseStyle} ${statusStyles[status]}`}
+      style={{ WebkitUserSelect: 'none', WebkitTouchCallout: 'none', userSelect: 'none' }}
     >
       <span>{code}</span>
       {status === 'forTrade' && tradeCount > 0 && (
-        // Burbuja esmeralda en lugar de roja chillona
         <div className="absolute -top-2 -right-2 bg-emerald-500 text-white border-2 border-white rounded-full w-6 h-6 flex items-center justify-center text-[11px] shadow-sm font-bold z-10">
           +{tradeCount}
         </div>
