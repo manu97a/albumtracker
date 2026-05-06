@@ -12,6 +12,8 @@ export default function Dashboard({ params }: { params: Promise<{ username: stri
   const [isLoading, setIsLoading] = useState(true);
   const [isCopied, setIsCopied] = useState(false);
   const [isOwner, setIsOwner] = useState(false); 
+  const [phone, setPhone] = useState('');
+  const [saveStatus, setSaveStatus] = useState('');
 
   const resolvedParams = use(params);
   const currentUsername = resolvedParams.username;
@@ -30,6 +32,7 @@ export default function Dashboard({ params }: { params: Promise<{ username: stri
       .then(res => res.json())
       .then(data => {
         setAlbumData(data);
+        setPhone(data.phone || ''); // <-- AGREGA ESTA LÍNEA
         setIsLoading(false);
       })
       .catch(err => {
@@ -44,6 +47,20 @@ export default function Dashboard({ params }: { params: Promise<{ username: stri
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
     });
+  };
+  const handleSavePhone = async () => {
+    setSaveStatus('Guardando...');
+    try {
+      await fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUsername, phone })
+      });
+      setSaveStatus('¡Guardado!');
+      setTimeout(() => setSaveStatus(''), 2000);
+    } catch (error) {
+      setSaveStatus('Error');
+    }
   };
 
   if (isLoading) {
@@ -86,6 +103,22 @@ export default function Dashboard({ params }: { params: Promise<{ username: stri
                🌍 Ver álbumes de la comunidad 
              </Link>
           </div>
+          <div className="mt-6 flex items-center gap-2 bg-white p-2 rounded-full border border-slate-200 shadow-sm">
+            <span className="pl-3 text-slate-500 text-sm">📱 WhatsApp:</span>
+            <input 
+              type="text" 
+              placeholder="+593987654321" 
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="outline-none bg-transparent text-sm text-slate-700 w-32 placeholder-slate-300"
+            />
+            <button 
+              onClick={handleSavePhone}
+              className="bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-full hover:bg-slate-700 transition-colors"
+            >
+              {saveStatus || 'Guardar'}
+            </button>
+          </div>
         </header>
 
         {TEAMS.map((team) => (
@@ -126,41 +159,56 @@ function PublicView({ username, data, viewerAlias }: { username: string, data: a
     ? forTradeList.filter(([code]) => viewerData.missing.includes(code))
     : [];
 
+  // PREPARAMOS EL MENSAJE DINÁMICO
+  const hasPhone = Boolean(data?.phone);
+  // Extraemos solo los códigos (ej: "QAT-8, TUR-20")
+  const matchCodes = perfectMatches.map(([code]) => code).join(', ');
+  // Armamos el texto para WhatsApp
+  const waMessage = `¡Hola! Vi tu álbum en la comunidad. Tienes cromos repetidos que me faltan (${matchCodes}). ¿Intercambiamos?`;
+  const waLink = `https://wa.me/${data?.phone?.replace(/\+/g, '')}?text=${encodeURIComponent(waMessage)}`;
+
   return (
     <main className="min-h-screen bg-slate-50 p-6 md:p-12 font-sans">
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center mb-8">
           <h1 className="text-3xl font-bold text-slate-800 mb-2">Álbum de {username}</h1>
-          <p className="text-slate-500 mb-6">Revisa lo que le falta y lo que tiene repetido para intercambiar.</p>
-          
-          <a 
-            href={`https://wa.me/?text=Hola!+Vi+tu+álbum+del+mundial+y+quiero+intercambiar+cromos!`}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-block bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-8 rounded-full transition-colors shadow-sm"
-          >
-            Hacerle una oferta
-          </a>
+          <p className="text-slate-500">Revisa lo que le falta y lo que tiene repetido para intercambiar.</p>
         </div>
 
-        {/* --- NUEVA SECCIÓN DE MATCH --- */}
+        {/* --- SECCIÓN DE MATCH CON WHATSAPP INTEGRADO --- */}
         {viewerAlias && perfectMatches.length > 0 && (
           <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-6 mb-8 text-center shadow-sm">
-            <h2 className="text-xl font-bold text-indigo-800 mb-2 flex items-center justify-center gap-2">
-              ¡Intercambia con <strong>{username}</strong>!
+            <h2 className="text-2xl font-bold text-indigo-800 mb-2 flex items-center justify-center gap-2">
+              ¡Intercambia con {username}!
             </h2>
             <p className="text-indigo-600 mb-4">
-               tiene <strong>{perfectMatches.length}</strong> cromos repetidos que a ti te faltan:
+              Tiene <strong>{perfectMatches.length}</strong> cromos repetidos que a ti te faltan:
             </p>
-            <div className="flex flex-wrap justify-center gap-2">
+            <div className="flex flex-wrap justify-center gap-2 mb-6">
               {perfectMatches.map(([code]) => (
-                <span key={code} className="bg-white border border-indigo-300 text-indigo-700 px-3 py-1 rounded-lg font-bold text-sm shadow-sm">
+                <span key={code} className="bg-white border border-indigo-300 text-indigo-700 px-4 py-1.5 rounded-lg font-bold text-sm shadow-sm">
                   {code}
                 </span>
               ))}
             </div>
+
+            {/* Solo mostramos el botón si el usuario registró su teléfono */}
+            {hasPhone ? (
+              <a 
+                href={waLink}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 px-8 rounded-full transition-colors shadow-sm transform hover:scale-105"
+              >
+                💬 Enviar oferta por WhatsApp
+              </a>
+            ) : (
+              <p className="text-sm text-indigo-400 italic">El usuario no ha registrado su número de contacto.</p>
+            )}
           </div>
         )}
+
+        
 
         {/* Columnas originales */}
         <div className="grid md:grid-cols-2 gap-8">
