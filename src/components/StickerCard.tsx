@@ -1,5 +1,5 @@
 'use client';
-import { useState, useRef} from 'react';
+import { useState, useRef } from 'react';
 
 type StickerStatus = 'missing' | 'owned' | 'forTrade';
 
@@ -7,7 +7,7 @@ interface StickerProps {
   code: string; 
   initialStatus?: StickerStatus;
   initialTradeCount?: number;
-  currentUser: string; // <-- Recibimos el usuario
+  currentUser: string; 
 }
 
 export default function StickerCard({ 
@@ -18,33 +18,11 @@ export default function StickerCard({
 }: StickerProps) {
   const [status, setStatus] = useState<StickerStatus>(initialStatus);
   const [tradeCount, setTradeCount] = useState(initialTradeCount);
+  
+  // Refs para el móvil
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const isLongPress = useRef(false);
-  const handleTouchStart = (e: React.TouchEvent) => {
-    isLongPress.current = false;
-    timerRef.current = setTimeout(() => {
-      isLongPress.current = true;
-      handleReset(e as any); // Marcamos como faltante al mantener presionado
-      
-      // Vibración sutil si el navegador lo soporta
-      if (typeof window !== 'undefined' && navigator.vibrate) {
-        navigator.vibrate(50);
-      }
-    }, 500); // 500ms = medio segundo
-  };
 
-  const handleTouchEnd = () => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-  };
-
-  const handleTouchMove = () => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-  };
-
-  const customHandleTap = (e: any) => {
-    if (isLongPress.current) return; // Si fue un toque largo, ignoramos el tap normal
-    handleTap(e);
-  };
   // Enviamos el userId real a la base de datos
   const saveToDB = async (newStatus: StickerStatus, newCount: number) => {
     try {
@@ -52,7 +30,7 @@ export default function StickerCard({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          userId: currentUser, // <-- Lo mandamos aquí
+          userId: currentUser,
           code, 
           status: newStatus, 
           count: newCount 
@@ -63,7 +41,41 @@ export default function StickerCard({
     }
   };
 
-  const handleTap = () => {
+  // 1. FUNCIÓN LIMPIA: Solo cambia estados y guarda (no depende de eventos)
+  const executeReset = () => {
+    const newStatus = 'missing';
+    const newCount = 0;
+    setStatus(newStatus);
+    setTradeCount(newCount);
+    saveToDB(newStatus, newCount);
+  };
+
+  // 2. LÓGICA TÁCTIL (Móvil)
+  const handleTouchStart = () => {
+    isLongPress.current = false;
+    timerRef.current = setTimeout(() => {
+      isLongPress.current = true;
+      executeReset(); // Llamamos a la función limpia aquí
+      
+      // Vibración sutil
+      if (typeof window !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate(50);
+      }
+    }, 500); 
+  };
+
+  const handleTouchEnd = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+  };
+
+  const handleTouchMove = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+  };
+
+  // 3. LÓGICA DE CLIC IZQUIERDO (PC) O TOQUE RÁPIDO (Móvil)
+  const customHandleTap = () => {
+    if (isLongPress.current) return; // Ignoramos si fue un toque largo
+    
     let newStatus = status;
     let newCount = tradeCount;
 
@@ -76,45 +88,30 @@ export default function StickerCard({
       newCount = tradeCount + 1;
     }
 
-    // Actualizamos la pantalla instantáneamente
     setStatus(newStatus);
     setTradeCount(newCount);
-    
-    // Enviamos a la DB usando los nuevos valores
     saveToDB(newStatus, newCount);
   };
 
-  const handleReset = (e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault(); 
-    
-    const newStatus = 'missing';
-    const newCount = 0;
-    
-    // Actualizamos pantalla
-    setStatus(newStatus);
-    setTradeCount(newCount);
-    
-    // Enviamos a la DB
-    saveToDB(newStatus, newCount);
+  // 4. LÓGICA DE CLIC DERECHO (PC)
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault(); // Solo prevenimos el menú de opciones nativo en PC
+    executeReset();
   };
 
-  // ... (la parte superior del archivo con las funciones saveToDB y handleTap queda igual)
-
-  // NUEVOS ESTILOS BASADOS EN LA PORTADA
-  // Estilos más limpios y armónicos
+  // ESTILOS
   const baseStyle = "h-16 flex flex-col items-center justify-center font-bold text-sm cursor-pointer transition-all select-none rounded-lg border-2";
   
   const statusStyles = {
     missing: "bg-slate-50 text-slate-400 border-dashed border-slate-200",
     owned: "bg-white text-slate-700 border-solid border-slate-200 hover:border-slate-300 hover:bg-slate-50",
-    // Verde pastel con borde más definido
     forTrade: "bg-emerald-50 text-emerald-700 border-solid border-emerald-400 relative"
   };
 
   return (
     <div 
       onClick={customHandleTap} 
-      onContextMenu={handleReset}
+      onContextMenu={handleContextMenu}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       onTouchMove={handleTouchMove}
