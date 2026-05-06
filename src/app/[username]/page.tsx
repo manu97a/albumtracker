@@ -1,19 +1,24 @@
 // src/app/[username]/page.tsx
-'use client'; 
-import { useEffect, useState, use } from 'react';
-import { useSession } from 'next-auth/react';
-import { TEAMS } from '../../lib/constants'; 
-import TeamGrid from '../../components/TeamGrid';
-import Link from 'next/link';
+"use client";
+import { useEffect, useState, use } from "react";
+import { useSession } from "next-auth/react";
+import { TEAMS } from "../../lib/constants";
+import TeamGrid from "../../components/TeamGrid";
+import Link from "next/link";
 
-export default function Dashboard({ params }: { params: Promise<{ username: string }> }) {
+export default function Dashboard({
+  params,
+}: {
+  params: Promise<{ username: string }>;
+}) {
   const { data: session } = useSession();
   const [albumData, setAlbumData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isCopied, setIsCopied] = useState(false);
-  const [isOwner, setIsOwner] = useState(false); 
-  const [phone, setPhone] = useState('');
-  const [saveStatus, setSaveStatus] = useState('');
+  const [isOwner, setIsOwner] = useState(false);
+  const [phone, setPhone] = useState("");
+  const [saveStatus, setSaveStatus] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const resolvedParams = use(params);
   const currentUsername = resolvedParams.username;
@@ -22,24 +27,33 @@ export default function Dashboard({ params }: { params: Promise<{ username: stri
     // 1. SEGURIDAD REAL: Verificamos si el correo de Google coincide con la URL
     let isThisUserOwner = false;
     if (session?.user?.email) {
-      const userAlias = session.user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '');
-      isThisUserOwner = (userAlias === currentUsername);
+      const userAlias = session.user.email
+        .split("@")[0]
+        .toLowerCase()
+        .replace(/[^a-z0-9_]/g, "");
+      isThisUserOwner = userAlias === currentUsername;
     }
     setIsOwner(isThisUserOwner);
 
     // 2. Cargamos los datos del álbum
     fetch(`/api/album?user=${currentUsername}`)
-      .then(res => res.json())
-      .then(data => {
+      .then((res) => res.json())
+      .then((data) => {
         setAlbumData(data);
-        setPhone(data.phone || ''); // <-- AGREGA ESTA LÍNEA
+        setPhone(data.phone || ""); // <-- AGREGA ESTA LÍNEA
         setIsLoading(false);
       })
-      .catch(err => {
+      .catch((err) => {
         console.error("Error cargando el álbum:", err);
         setIsLoading(false);
       });
   }, [currentUsername, session]);
+
+  const filteredTeams = TEAMS.filter(
+    (team) =>
+      team.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      team.code.toLowerCase().includes(searchQuery.toLowerCase()),
+  );
 
   const handleCopyLink = () => {
     const url = `${window.location.origin}/${currentUsername}`;
@@ -49,32 +63,45 @@ export default function Dashboard({ params }: { params: Promise<{ username: stri
     });
   };
   const handleSavePhone = async () => {
-    setSaveStatus('Guardando...');
+    setSaveStatus("Guardando...");
     try {
-      await fetch('/api/profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: currentUsername, phone })
+      await fetch("/api/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: currentUsername, phone }),
       });
-      setSaveStatus('¡Guardado!');
-      setTimeout(() => setSaveStatus(''), 2000);
+      setSaveStatus("¡Guardado!");
+      setTimeout(() => setSaveStatus(""), 2000);
     } catch (error) {
-      setSaveStatus('Error');
+      setSaveStatus("Error");
     }
   };
 
   if (isLoading) {
-    return <div className="flex h-screen items-center justify-center text-xl text-gray-500">Cargando álbum...</div>;
+    return (
+      <div className="flex h-screen items-center justify-center text-xl text-gray-500">
+        Cargando álbum...
+      </div>
+    );
   }
 
   // Extraemos tu alias para mandarlo a la vista pública y poder hacer el "Match"
-  const viewerAlias = session?.user?.email 
-    ? session.user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]/g, '') 
+  const viewerAlias = session?.user?.email
+    ? session.user.email
+        .split("@")[0]
+        .toLowerCase()
+        .replace(/[^a-z0-9_]/g, "")
     : null;
 
   // Si no es el dueño, mostramos la vista pública y le enviamos quién está mirando
   if (!isOwner) {
-    return <PublicView username={currentUsername} data={albumData} viewerAlias={viewerAlias} />;
+    return (
+      <PublicView
+        username={currentUsername}
+        data={albumData}
+        viewerAlias={viewerAlias}
+      />
+    );
   }
 
   return (
@@ -85,51 +112,96 @@ export default function Dashboard({ params }: { params: Promise<{ username: stri
           <h1 className="text-4xl font-extrabold text-slate-800 mb-3 tracking-tight">
             Álbum de {currentUsername}
           </h1>
-          
-          <div onClick={handleCopyLink} className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-full cursor-pointer hover:bg-slate-50 shadow-sm transition-all text-sm">
+
+          <div
+            onClick={handleCopyLink}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-full cursor-pointer hover:bg-slate-50 shadow-sm transition-all text-sm"
+          >
             <span className="text-slate-500">Enlace público:</span>
-            <span className="font-mono text-indigo-600 font-medium">{typeof window !== 'undefined' ? window.location.host : 'tusitio.com'}/{currentUsername}</span>
-            <span className={`ml-2 text-xs font-bold px-2 py-1 rounded ${isCopied ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
-              {isCopied ? '¡Copiado!' : 'Copiar'}
+            <span className="font-mono text-indigo-600 font-medium">
+              {typeof window !== "undefined"
+                ? window.location.host
+                : "tusitio.com"}
+              /{currentUsername}
+            </span>
+            <span
+              className={`ml-2 text-xs font-bold px-2 py-1 rounded ${isCopied ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`}
+            >
+              {isCopied ? "¡Copiado!" : "Copiar"}
             </span>
           </div>
 
           {/* Botón de comunidad más armónico */}
           <div className="mt-6">
-             <Link 
-               href="/comunidad" 
-               className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-medium py-2.5 px-6 rounded-full transition-colors shadow-sm"
-             >
-               🌍 Ver álbumes de la comunidad 
-             </Link>
+            <Link
+              href="/comunidad"
+              className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white font-medium py-2.5 px-6 rounded-full transition-colors shadow-sm"
+            >
+              🌍 Ver álbumes de la comunidad
+            </Link>
           </div>
           <div className="mt-6 flex items-center gap-2 bg-white p-2 rounded-full border border-slate-200 shadow-sm">
             <span className="pl-3 text-slate-500 text-sm">📱 WhatsApp:</span>
-            <input 
-              type="text" 
-              placeholder="+593987654321" 
+            <input
+              type="text"
+              placeholder="+593987654321"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               className="outline-none bg-transparent text-sm text-slate-700 w-32 placeholder-slate-300"
             />
-            <button 
+            <button
               onClick={handleSavePhone}
               className="bg-slate-800 text-white text-xs font-bold px-4 py-2 rounded-full hover:bg-slate-700 transition-colors"
             >
-              {saveStatus || 'Guardar'}
+              {saveStatus || "Guardar"}
             </button>
           </div>
         </header>
 
-        {TEAMS.map((team) => (
-          <TeamGrid 
-            key={team.code} 
-            team={team} 
-            missing={albumData?.missing || []} 
-            forTrade={albumData?.forTrade || {}}
-            currentUser={currentUsername} 
+        {/* --- NUEVO: BARRA DE BÚSQUEDA --- */}
+        <div className="mb-8 relative max-w-lg mx-auto">
+          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+            <span className="text-slate-400">🔍</span>
+          </div>
+          <input
+            type="text"
+            className="block w-full pl-12 pr-4 py-3 border-2 border-slate-200 rounded-2xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm shadow-sm transition-all text-slate-700"
+            placeholder="Buscar por país o código (ej. ARG, México)..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
           />
-        ))}
+          {searchQuery && (
+            <button 
+              onClick={() => setSearchQuery('')}
+              className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600"
+            >
+              ✖
+            </button>
+          )}
+        </div>
+
+        {/* --- NUEVO: RENDERIZADO FILTRADO --- */}
+        {filteredTeams.length > 0 ? (
+          filteredTeams.map((team) => (
+            <TeamGrid 
+              key={team.code} 
+              team={team} 
+              missing={albumData?.missing || []} 
+              forTrade={albumData?.forTrade || {}}
+              currentUser={currentUsername} 
+            />
+          ))
+        ) : (
+          <div className="text-center py-12 bg-white rounded-2xl border border-slate-200 shadow-sm">
+            <p className="text-slate-500 text-lg">No se encontraron equipos para "<span className="font-bold">{searchQuery}</span>"</p>
+            <button 
+              onClick={() => setSearchQuery('')}
+              className="mt-4 text-indigo-600 hover:text-indigo-800 font-medium underline"
+            >
+              Limpiar búsqueda
+            </button>
+          </div>
+        )}
       </div>
     </main>
   );
@@ -138,41 +210,54 @@ export default function Dashboard({ params }: { params: Promise<{ username: stri
 // ==========================================
 // COMPONENTE: LA VISTA PARA TUS AMIGOS
 // ==========================================
-function PublicView({ username, data, viewerAlias }: { username: string, data: any, viewerAlias: string | null }) {
+function PublicView({
+  username,
+  data,
+  viewerAlias,
+}: {
+  username: string;
+  data: any;
+  viewerAlias: string | null;
+}) {
   const [viewerData, setViewerData] = useState<any>(null);
 
   // Cuando cargue la vista, si estás logueado, traemos TU álbum por detrás
   useEffect(() => {
     if (viewerAlias) {
       fetch(`/api/album?user=${viewerAlias}`)
-        .then(res => res.json())
-        .then(resData => setViewerData(resData))
-        .catch(err => console.error("Error cargando tus datos:", err));
+        .then((res) => res.json())
+        .then((resData) => setViewerData(resData))
+        .catch((err) => console.error("Error cargando tus datos:", err));
     }
   }, [viewerAlias]);
 
   const missingCount = data?.missing?.length || 0;
   const forTradeList = Object.entries(data?.forTrade || {});
-  
+
   // LOGICA DE MATCH: Filtramos los cromos que él tiene repetidos, revisando si están en tu lista de faltantes
-  const perfectMatches = viewerData && viewerData.missing
-    ? forTradeList.filter(([code]) => viewerData.missing.includes(code))
-    : [];
+  const perfectMatches =
+    viewerData && viewerData.missing
+      ? forTradeList.filter(([code]) => viewerData.missing.includes(code))
+      : [];
 
   // PREPARAMOS EL MENSAJE DINÁMICO
   const hasPhone = Boolean(data?.phone);
   // Extraemos solo los códigos (ej: "QAT-8, TUR-20")
-  const matchCodes = perfectMatches.map(([code]) => code).join(', ');
+  const matchCodes = perfectMatches.map(([code]) => code).join(", ");
   // Armamos el texto para WhatsApp
   const waMessage = `¡Hola! Vi tu álbum en la comunidad. Tienes cromos repetidos que me faltan (${matchCodes}). ¿Intercambiamos?`;
-  const waLink = `https://wa.me/${data?.phone?.replace(/\+/g, '')}?text=${encodeURIComponent(waMessage)}`;
+  const waLink = `https://wa.me/${data?.phone?.replace(/\+/g, "")}?text=${encodeURIComponent(waMessage)}`;
 
   return (
     <main className="min-h-screen bg-slate-50 p-6 md:p-12 font-sans">
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center mb-8">
-          <h1 className="text-3xl font-bold text-slate-800 mb-2">Álbum de {username}</h1>
-          <p className="text-slate-500">Revisa lo que le falta y lo que tiene repetido para intercambiar.</p>
+          <h1 className="text-3xl font-bold text-slate-800 mb-2">
+            Álbum de {username}
+          </h1>
+          <p className="text-slate-500">
+            Revisa lo que le falta y lo que tiene repetido para intercambiar.
+          </p>
         </div>
 
         {/* --- SECCIÓN DE MATCH CON WHATSAPP INTEGRADO --- */}
@@ -182,11 +267,15 @@ function PublicView({ username, data, viewerAlias }: { username: string, data: a
               ¡Intercambia con {username}!
             </h2>
             <p className="text-indigo-600 mb-4">
-              Tiene <strong>{perfectMatches.length}</strong> cromos repetidos que a ti te faltan:
+              Tiene <strong>{perfectMatches.length}</strong> cromos repetidos
+              que a ti te faltan:
             </p>
             <div className="flex flex-wrap justify-center gap-2 mb-6">
               {perfectMatches.map(([code]) => (
-                <span key={code} className="bg-white border border-indigo-300 text-indigo-700 px-4 py-1.5 rounded-lg font-bold text-sm shadow-sm">
+                <span
+                  key={code}
+                  className="bg-white border border-indigo-300 text-indigo-700 px-4 py-1.5 rounded-lg font-bold text-sm shadow-sm"
+                >
                   {code}
                 </span>
               ))}
@@ -194,7 +283,7 @@ function PublicView({ username, data, viewerAlias }: { username: string, data: a
 
             {/* Solo mostramos el botón si el usuario registró su teléfono */}
             {hasPhone ? (
-              <a 
+              <a
                 href={waLink}
                 target="_blank"
                 rel="noreferrer"
@@ -203,19 +292,21 @@ function PublicView({ username, data, viewerAlias }: { username: string, data: a
                 💬 Enviar oferta por WhatsApp
               </a>
             ) : (
-              <p className="text-sm text-indigo-400 italic">El usuario no ha registrado su número de contacto.</p>
+              <p className="text-sm text-indigo-400 italic">
+                El usuario no ha registrado su número de contacto.
+              </p>
             )}
           </div>
         )}
-
-        
 
         {/* Columnas originales */}
         <div className="grid md:grid-cols-2 gap-8">
           {/* Columna: Lo que ofrezco */}
           <div className="bg-emerald-50 rounded-2xl p-6 border border-emerald-100">
             <h2 className="text-xl font-bold text-emerald-800 mb-4 flex items-center gap-2">
-              <span className="bg-emerald-200 text-emerald-800 rounded-full w-8 h-8 flex items-center justify-center">🔁</span>
+              <span className="bg-emerald-200 text-emerald-800 rounded-full w-8 h-8 flex items-center justify-center">
+                🔁
+              </span>
               Tiene para cambiar
             </h2>
             {forTradeList.length === 0 ? (
@@ -223,8 +314,14 @@ function PublicView({ username, data, viewerAlias }: { username: string, data: a
             ) : (
               <div className="flex flex-wrap gap-2">
                 {forTradeList.map(([code, count]) => (
-                  <span key={code} className="bg-white border border-emerald-300 text-emerald-700 px-3 py-1 rounded-lg font-bold text-sm shadow-sm">
-                    {code} <span className="bg-emerald-500 text-white rounded-full px-2 py-0.5 ml-1 text-xs">{String(count)}</span>
+                  <span
+                    key={code}
+                    className="bg-white border border-emerald-300 text-emerald-700 px-3 py-1 rounded-lg font-bold text-sm shadow-sm"
+                  >
+                    {code}{" "}
+                    <span className="bg-emerald-500 text-white rounded-full px-2 py-0.5 ml-1 text-xs">
+                      {String(count)}
+                    </span>
                   </span>
                 ))}
               </div>
@@ -234,7 +331,9 @@ function PublicView({ username, data, viewerAlias }: { username: string, data: a
           {/* Columna: Lo que busco */}
           <div className="bg-orange-50 rounded-2xl p-6 border border-orange-100">
             <h2 className="text-xl font-bold text-orange-800 mb-4 flex items-center gap-2">
-              <span className="bg-orange-200 text-orange-800 rounded-full w-8 h-8 flex items-center justify-center">🔍</span>
+              <span className="bg-orange-200 text-orange-800 rounded-full w-8 h-8 flex items-center justify-center">
+                🔍
+              </span>
               Le faltan ({missingCount})
             </h2>
             {missingCount === 0 ? (
@@ -242,7 +341,10 @@ function PublicView({ username, data, viewerAlias }: { username: string, data: a
             ) : (
               <div className="flex flex-wrap gap-2">
                 {data?.missing?.map((code: string) => (
-                  <span key={code} className="bg-white border border-orange-200 text-orange-600 px-3 py-1 rounded-lg font-mono text-sm shadow-sm">
+                  <span
+                    key={code}
+                    className="bg-white border border-orange-200 text-orange-600 px-3 py-1 rounded-lg font-mono text-sm shadow-sm"
+                  >
                     {code}
                   </span>
                 ))}
