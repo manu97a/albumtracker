@@ -1,15 +1,26 @@
 // src/components/TeamGrid.tsx
 import StickerCard from './StickerCard';
-import { Team } from '../lib/constants';
+import { Team, TEAM_FLAGS } from '../lib/constants';
 
 interface TeamGridProps {
   team: Team;
   missing: string[];
   forTrade: Record<string, number>;
   currentUser: string; // <-- Agregamos esta línea
+  onStickerChange?: (
+    code: string,
+    status: 'missing' | 'owned' | 'forTrade',
+    count: number,
+  ) => void;
 }
 
-export default function TeamGrid({ team, missing, forTrade, currentUser }: TeamGridProps) {
+export default function TeamGrid({
+  team,
+  missing,
+  forTrade,
+  currentUser,
+  onStickerChange,
+}: TeamGridProps) {
   const stickerNumbers = Array.from({ length: team.stickersCount }, (_, i) => i + 1);
 
   return (
@@ -18,7 +29,12 @@ export default function TeamGrid({ team, missing, forTrade, currentUser }: TeamG
         <span className="bg-slate-800 text-white text-xs font-bold px-2.5 py-1 rounded-md shadow-sm">
           {team.code}
         </span>
-        <h2 className="text-xl font-bold text-gray-800">{team.name}</h2>
+        <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+          {team.name}
+          {TEAM_FLAGS[team.code] && (
+            <span aria-hidden="true">{TEAM_FLAGS[team.code]}</span>
+          )}
+        </h2>
       </div>
       
       <div className="grid grid-cols-4 md:grid-cols-5 lg:grid-cols-10 gap-2">
@@ -42,6 +58,7 @@ export default function TeamGrid({ team, missing, forTrade, currentUser }: TeamG
               initialTradeCount={count}
               // ¡NUEVO! Le pasamos el usuario al botón
               currentUser={currentUser} 
+              onStatusChange={onStickerChange}
             />
           );
         })}

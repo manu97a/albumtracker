@@ -8,13 +8,15 @@ interface StickerProps {
   initialStatus?: StickerStatus;
   initialTradeCount?: number;
   currentUser: string; 
+  onStatusChange?: (code: string, status: StickerStatus, count: number) => void;
 }
 
 export default function StickerCard({ 
   code, 
   initialStatus = 'owned', 
   initialTradeCount = 0,
-  currentUser 
+  currentUser,
+  onStatusChange
 }: StickerProps) {
   const [status, setStatus] = useState<StickerStatus>(initialStatus);
   const [tradeCount, setTradeCount] = useState(initialTradeCount);
@@ -25,6 +27,8 @@ export default function StickerCard({
 
   // Enviamos el userId real a la base de datos
   const saveToDB = async (newStatus: StickerStatus, newCount: number) => {
+    onStatusChange?.(code, newStatus, newCount);
+
     try {
       await fetch('/api/album', {
         method: 'POST',

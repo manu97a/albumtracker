@@ -5,6 +5,159 @@ import { useSession } from "next-auth/react";
 import { TEAMS } from "../../lib/constants";
 import TeamGrid from "../../components/TeamGrid";
 import Link from "next/link";
+import { Check, Copy } from "lucide-react";
+
+type StickerStatus = "missing" | "owned" | "forTrade";
+
+interface AlbumData {
+  missing?: string[];
+  forTrade?: Record<string, number>;
+  phone?: string;
+}
+
+const teamOrder = new Map(TEAMS.map((team, index) => [team.code, index]));
+const teamLabels: Record<string, string> = {
+  FWC: "FWC",
+  MEX: "MEX 🇲🇽",
+  RSA: "RSA 🇿🇦",
+  KOR: "KOR 🇰🇷",
+  CZE: "CZE 🇨🇿",
+  CAN: "CAN 🇨🇦",
+  BIH: "BIH 🇧🇦",
+  QAT: "QAT 🇶🇦",
+  SUI: "SUI 🇨🇭",
+  BRA: "BRA 🇧🇷",
+  MAR: "MAR 🇲🇦",
+  HAI: "HAI 🇭🇹",
+  SCO: "SCO 🏴",
+  USA: "USA 🇺🇸",
+  PAR: "PAR 🇵🇾",
+  AUS: "AUS 🇦🇺",
+  TUR: "TUR 🇹🇷",
+  GER: "GER 🇩🇪",
+  CUW: "CUW 🇨🇼",
+  CIV: "CIV 🇨🇮",
+  ECU: "ECU 🇪🇨",
+  NED: "NED 🇳🇱",
+  JPN: "JPN 🇯🇵",
+  SWE: "SWE 🇸🇪",
+  TUN: "TUN 🇹🇳",
+  BEL: "BEL 🇧🇪",
+  EGY: "EGY 🇪🇬",
+  IRN: "IRN 🇮🇷",
+  NZL: "NZL 🇳🇿",
+  ESP: "ESP 🇪🇸",
+  CPV: "CPV 🇨🇻",
+  KSA: "KSA 🇸🇦",
+  URU: "URU 🇺🇾",
+  FRA: "FRA 🇫🇷",
+  SEN: "SEN 🇸🇳",
+  IRQ: "IRQ 🇮🇶",
+  NOR: "NOR 🇳🇴",
+  ARG: "ARG 🇦🇷",
+  ALG: "ALG 🇩🇿",
+  AUT: "AUT 🇦🇹",
+  JOR: "JOR 🇯🇴",
+  POR: "POR 🇵🇹",
+  COD: "COD 🇨🇩",
+  UZB: "UZB 🇺🇿",
+  COL: "COL 🇨🇴",
+  ENG: "ENG 🏴",
+  CRO: "CRO 🇭🇷",
+  GHA: "GHA 🇬🇭",
+  PAN: "PAN 🇵🇦",
+};
+
+function sortStickerEntries(entries: [string, number][]) {
+  return entries.sort(([codeA], [codeB]) => {
+    const [teamA, numberA] = codeA.split("-");
+    const [teamB, numberB] = codeB.split("-");
+    const teamDiff =
+      (teamOrder.get(teamA) ?? Number.MAX_SAFE_INTEGER) -
+      (teamOrder.get(teamB) ?? Number.MAX_SAFE_INTEGER);
+
+    if (teamDiff !== 0) return teamDiff;
+
+    return Number(numberA) - Number(numberB);
+  });
+}
+
+function getDuplicateEntries(forTrade: Record<string, number> = {}) {
+  return sortStickerEntries(
+    Object.entries(forTrade).filter(([, count]) => Number(count) > 0),
+  );
+}
+
+function getMissingEntries(missing: string[] = []) {
+  return sortStickerEntries(missing.map((code) => [code, 1]));
+}
+
+function groupStickerEntries(entries: [string, number][]) {
+  return entries.reduce<Record<string, string[]>>(
+    (groups, [code, count]) => {
+      const [teamCode, stickerNumber] = code.split("-");
+      groups[teamCode] = groups[teamCode] || [];
+
+      for (let index = 0; index < count; index += 1) {
+        groups[teamCode].push(stickerNumber);
+      }
+
+      return groups;
+    },
+    {},
+  );
+}
+
+function formatDuplicateText(username: string, entries: [string, number][]) {
+  const groupedDuplicates = groupStickerEntries(entries);
+  return [
+    `Mis cromos repetidos (${username}):`,
+    ...Object.entries(groupedDuplicates).map(
+      ([teamCode, stickerNumbers]) => `${teamCode}: ${stickerNumbers.join(", ")}`,
+    ),
+  ].join("\n");
+}
+
+function formatMissingText(username: string, entries: [string, number][]) {
+  const groupedMissing = groupStickerEntries(entries);
+
+  return [
+    `Mis cromos faltantes (${username}):`,
+    ...Object.entries(groupedMissing).map(
+      ([teamCode, stickerNumbers]) => `${teamCode}: ${stickerNumbers.join(", ")}`,
+    ),
+  ].join("\n");
+}
+
+function parseSharedRepeatedText(text: string) {
+  const parsedEntries: [string, number][] = [];
+
+  text.split("\n").forEach((line) => {
+    const match = line.trim().match(/^([A-Z]{3})\b.*:\s*(.+)$/);
+    if (!match) return;
+
+    const [, teamCode, numbersText] = match;
+    const stickerNumbers = numbersText.match(/\d+/g) || [];
+
+    stickerNumbers.forEach((stickerNumber) => {
+      parsedEntries.push([`${teamCode}-${Number(stickerNumber)}`, 1]);
+    });
+  });
+
+  return parsedEntries;
+}
+
+function formatUsefulMatchesText(entries: [string, number][]) {
+  const groupedMatches = groupStickerEntries(entries);
+
+  return [
+    "Me sirven",
+    ...Object.entries(groupedMatches).map(
+      ([teamCode, stickerNumbers]) =>
+        `${teamLabels[teamCode] || teamCode}: ${stickerNumbers.join(", ")}`,
+    ),
+  ].join("\n");
+}
 
 export default function Dashboard({
   params,
@@ -12,33 +165,32 @@ export default function Dashboard({
   params: Promise<{ username: string }>;
 }) {
   const { data: session } = useSession();
-  const [albumData, setAlbumData] = useState<any>(null);
+  const [albumData, setAlbumData] = useState<AlbumData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isCopied, setIsCopied] = useState(false);
-  const [isOwner, setIsOwner] = useState(false);
   const [phone, setPhone] = useState("");
   const [saveStatus, setSaveStatus] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [areDuplicatesCopied, setAreDuplicatesCopied] = useState(false);
+  const [areMissingCopied, setAreMissingCopied] = useState(false);
+  const [comparisonText, setComparisonText] = useState("");
+  const [comparisonStatus, setComparisonStatus] = useState("");
 
   const resolvedParams = use(params);
   const currentUsername = resolvedParams.username;
-
-  useEffect(() => {
-    // 1. SEGURIDAD REAL: Verificamos si el correo de Google coincide con la URL
-    let isThisUserOwner = false;
-    if (session?.user?.email) {
-      const userAlias = session.user.email
+  const viewerAlias = session?.user?.email
+    ? session.user.email
         .split("@")[0]
         .toLowerCase()
-        .replace(/[^a-z0-9_]/g, "");
-      isThisUserOwner = userAlias === currentUsername;
-    }
-    setIsOwner(isThisUserOwner);
+        .replace(/[^a-z0-9_]/g, "")
+    : null;
+  const isOwner = viewerAlias === currentUsername;
 
-    // 2. Cargamos los datos del álbum
+  useEffect(() => {
+    // Cargamos los datos del álbum
     fetch(`/api/album?user=${currentUsername}`)
       .then((res) => res.json())
-      .then((data) => {
+      .then((data: AlbumData) => {
         setAlbumData(data);
         setPhone(data.phone || ""); // <-- AGREGA ESTA LÍNEA
         setIsLoading(false);
@@ -47,7 +199,7 @@ export default function Dashboard({
         console.error("Error cargando el álbum:", err);
         setIsLoading(false);
       });
-  }, [currentUsername, session]);
+  }, [currentUsername]);
 
   const filteredTeams = TEAMS.filter(
     (team) =>
@@ -62,6 +214,79 @@ export default function Dashboard({
       setTimeout(() => setIsCopied(false), 2000);
     });
   };
+
+  const handleStickerChange = (
+    code: string,
+    status: StickerStatus,
+    count: number,
+  ) => {
+    setAlbumData((currentData) => {
+      const nextMissing = new Set<string>(currentData?.missing || []);
+      const nextForTrade = { ...(currentData?.forTrade || {}) };
+
+      nextMissing.delete(code);
+      delete nextForTrade[code];
+
+      if (status === "missing") {
+        nextMissing.add(code);
+      }
+
+      if (status === "forTrade" && count > 0) {
+        nextForTrade[code] = count;
+      }
+
+      return {
+        ...(currentData || {}),
+        missing: Array.from(nextMissing),
+        forTrade: nextForTrade,
+      };
+    });
+  };
+
+  const handleCopyDuplicates = () => {
+    const duplicates = getDuplicateEntries(albumData?.forTrade || {});
+    if (duplicates.length === 0) return;
+
+    const text = formatDuplicateText(currentUsername, duplicates);
+
+    navigator.clipboard.writeText(text).then(() => {
+      setAreDuplicatesCopied(true);
+      setTimeout(() => setAreDuplicatesCopied(false), 2000);
+    });
+  };
+
+  const handleCopyMissing = () => {
+    const missing = getMissingEntries(albumData?.missing || []);
+    if (missing.length === 0) return;
+
+    const text = formatMissingText(currentUsername, missing);
+
+    navigator.clipboard.writeText(text).then(() => {
+      setAreMissingCopied(true);
+      setTimeout(() => setAreMissingCopied(false), 2000);
+    });
+  };
+
+  const handleCompareSharedText = () => {
+    const missingCodes = new Set(albumData?.missing || []);
+    const usefulMatches = parseSharedRepeatedText(comparisonText).filter(
+      ([code]) => missingCodes.has(code),
+    );
+
+    if (usefulMatches.length === 0) {
+      setComparisonStatus("No encontré cromos que te sirvan en ese texto.");
+      return;
+    }
+
+    const text = formatUsefulMatchesText(sortStickerEntries(usefulMatches));
+
+    navigator.clipboard.writeText(text).then(() => {
+      setComparisonStatus(
+        `${usefulMatches.length} cromos que te sirven copiados al portapapeles.`,
+      );
+    });
+  };
+
   const handleSavePhone = async () => {
     setSaveStatus("Guardando...");
     try {
@@ -72,7 +297,7 @@ export default function Dashboard({
       });
       setSaveStatus("¡Guardado!");
       setTimeout(() => setSaveStatus(""), 2000);
-    } catch (error) {
+    } catch {
       setSaveStatus("Error");
     }
   };
@@ -85,13 +310,8 @@ export default function Dashboard({
     );
   }
 
-  // Extraemos tu alias para mandarlo a la vista pública y poder hacer el "Match"
-  const viewerAlias = session?.user?.email
-    ? session.user.email
-        .split("@")[0]
-        .toLowerCase()
-        .replace(/[^a-z0-9_]/g, "")
-    : null;
+  const duplicateEntries = getDuplicateEntries(albumData?.forTrade || {});
+  const missingEntries = getMissingEntries(albumData?.missing || []);
 
   // Si no es el dueño, mostramos la vista pública y le enviamos quién está mirando
   if (!isOwner) {
@@ -140,6 +360,41 @@ export default function Dashboard({
               🌍 Ver álbumes de la comunidad
             </Link>
           </div>
+          <div className="mt-4 flex flex-col items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={handleCopyDuplicates}
+                disabled={duplicateEntries.length === 0}
+                className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-200 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-medium py-2.5 px-6 rounded-full transition-colors shadow-sm"
+              >
+                {areDuplicatesCopied ? (
+                  <Check className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <Copy className="h-4 w-4" aria-hidden="true" />
+                )}
+                {areDuplicatesCopied ? "Repetidos copiados" : "Copiar mis repetidos"}
+              </button>
+              <button
+                type="button"
+                onClick={handleCopyMissing}
+                disabled={missingEntries.length === 0}
+                className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:bg-slate-200 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-medium py-2.5 px-6 rounded-full transition-colors shadow-sm"
+              >
+                {areMissingCopied ? (
+                  <Check className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <Copy className="h-4 w-4" aria-hidden="true" />
+                )}
+                {areMissingCopied ? "Faltantes copiados" : "Copiar mis faltantes"}
+              </button>
+            </div>
+            <span className="text-xs text-slate-500">
+              {duplicateEntries.length > 0
+                ? `${duplicateEntries.length} cromos listos para compartir`
+                : "Aún no tienes repetidos para copiar"}
+            </span>
+          </div>
           <div className="mt-6 flex items-center gap-2 bg-white p-2 rounded-full border border-slate-200 shadow-sm">
             <span className="pl-3 text-slate-500 text-sm">📱 WhatsApp:</span>
             <input
@@ -157,6 +412,45 @@ export default function Dashboard({
             </button>
           </div>
         </header>
+
+        <section className="mb-8 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+          <div className="flex flex-col md:flex-row md:items-start gap-4">
+            <div className="flex-1">
+              <label
+                htmlFor="comparisonText"
+                className="block text-sm font-bold text-slate-700 mb-2"
+              >
+                Comparar repetidas de otra persona
+              </label>
+              <textarea
+                id="comparisonText"
+                value={comparisonText}
+                onChange={(event) => {
+                  setComparisonText(event.target.value);
+                  setComparisonStatus("");
+                }}
+                placeholder="Pega aquí el texto de Repetidas..."
+                className="w-full min-h-36 resize-y rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+              />
+            </div>
+            <div className="md:w-64 flex flex-col gap-2 md:pt-8">
+              <button
+                type="button"
+                onClick={handleCompareSharedText}
+                disabled={!comparisonText.trim() || missingEntries.length === 0}
+                className="inline-flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 disabled:bg-slate-200 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-medium py-2.5 px-5 rounded-full transition-colors shadow-sm"
+              >
+                <Copy className="h-4 w-4" aria-hidden="true" />
+                Comparar y copiar
+              </button>
+              {comparisonStatus && (
+                <p className="text-xs text-slate-500 text-center md:text-left">
+                  {comparisonStatus}
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
 
         {/* --- NUEVO: BARRA DE BÚSQUEDA --- */}
         <div className="mb-8 relative max-w-lg mx-auto">
@@ -189,11 +483,15 @@ export default function Dashboard({
               missing={albumData?.missing || []} 
               forTrade={albumData?.forTrade || {}}
               currentUser={currentUsername} 
+              onStickerChange={handleStickerChange}
             />
           ))
         ) : (
           <div className="text-center py-12 bg-white rounded-2xl border border-slate-200 shadow-sm">
-            <p className="text-slate-500 text-lg">No se encontraron equipos para "<span className="font-bold">{searchQuery}</span>"</p>
+            <p className="text-slate-500 text-lg">
+              No se encontraron equipos para{" "}
+              <span className="font-bold">{searchQuery}</span>
+            </p>
             <button 
               onClick={() => setSearchQuery('')}
               className="mt-4 text-indigo-600 hover:text-indigo-800 font-medium underline"
@@ -216,29 +514,29 @@ function PublicView({
   viewerAlias,
 }: {
   username: string;
-  data: any;
+  data: AlbumData | null;
   viewerAlias: string | null;
 }) {
-  const [viewerData, setViewerData] = useState<any>(null);
+  const [viewerData, setViewerData] = useState<AlbumData | null>(null);
 
   // Cuando cargue la vista, si estás logueado, traemos TU álbum por detrás
   useEffect(() => {
     if (viewerAlias) {
       fetch(`/api/album?user=${viewerAlias}`)
         .then((res) => res.json())
-        .then((resData) => setViewerData(resData))
+        .then((resData: AlbumData) => setViewerData(resData))
         .catch((err) => console.error("Error cargando tus datos:", err));
     }
   }, [viewerAlias]);
 
   const missingCount = data?.missing?.length || 0;
   const forTradeList = Object.entries(data?.forTrade || {});
+  const viewerMissing = viewerData?.missing || [];
 
   // LOGICA DE MATCH: Filtramos los cromos que él tiene repetidos, revisando si están en tu lista de faltantes
-  const perfectMatches =
-    viewerData && viewerData.missing
-      ? forTradeList.filter(([code]) => viewerData.missing.includes(code))
-      : [];
+  const perfectMatches = forTradeList.filter(([code]) =>
+    viewerMissing.includes(code),
+  );
 
   // PREPARAMOS EL MENSAJE DINÁMICO
   const hasPhone = Boolean(data?.phone);
