@@ -8,6 +8,7 @@ import Link from "next/link";
 import { Check, Copy } from "lucide-react";
 
 type StickerStatus = "missing" | "owned" | "forTrade";
+type AlbumView = "all" | "missing";
 
 interface AlbumData {
   missing?: string[];
@@ -90,6 +91,16 @@ function getDuplicateEntries(forTrade: Record<string, number> = {}) {
 
 function getMissingEntries(missing: string[] = []) {
   return sortStickerEntries(missing.map((code) => [code, 1]));
+}
+
+function getMissingNumbersByTeam(entries: [string, number][]) {
+  return entries.reduce<Record<string, number[]>>((groups, [code]) => {
+    const [teamCode, stickerNumber] = code.split("-");
+    groups[teamCode] = groups[teamCode] || [];
+    groups[teamCode].push(Number(stickerNumber));
+
+    return groups;
+  }, {});
 }
 
 function groupStickerEntries(entries: [string, number][]) {
@@ -175,6 +186,7 @@ export default function Dashboard({
   const [areMissingCopied, setAreMissingCopied] = useState(false);
   const [comparisonText, setComparisonText] = useState("");
   const [comparisonStatus, setComparisonStatus] = useState("");
+  const [albumView, setAlbumView] = useState<AlbumView>("all");
 
   const resolvedParams = use(params);
   const currentUsername = resolvedParams.username;
@@ -312,6 +324,10 @@ export default function Dashboard({
 
   const duplicateEntries = getDuplicateEntries(albumData?.forTrade || {});
   const missingEntries = getMissingEntries(albumData?.missing || []);
+  const missingNumbersByTeam = getMissingNumbersByTeam(missingEntries);
+  const missingTeams = filteredTeams.filter(
+    (team) => (missingNumbersByTeam[team.code] || []).length > 0,
+  );
 
   // Si no es el dueño, mostramos la vista pública y le enviamos quién está mirando
   if (!isOwner) {
@@ -452,6 +468,33 @@ export default function Dashboard({
           </div>
         </section>
 
+        <div className="mb-6 flex justify-center">
+          <div className="inline-flex rounded-full border border-slate-200 bg-white p-1 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setAlbumView("all")}
+              className={`px-5 py-2 text-sm font-bold rounded-full transition-colors ${
+                albumView === "all"
+                  ? "bg-slate-800 text-white"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              Álbum completo
+            </button>
+            <button
+              type="button"
+              onClick={() => setAlbumView("missing")}
+              className={`px-5 py-2 text-sm font-bold rounded-full transition-colors ${
+                albumView === "missing"
+                  ? "bg-red-600 text-white"
+                  : "text-slate-500 hover:text-slate-800"
+              }`}
+            >
+              Solo faltantes ({missingEntries.length})
+            </button>
+          </div>
+        </div>
+
         {/* --- NUEVO: BARRA DE BÚSQUEDA --- */}
         <div className="mb-8 relative max-w-lg mx-auto">
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -475,7 +518,7 @@ export default function Dashboard({
         </div>
 
         {/* --- NUEVO: RENDERIZADO FILTRADO --- */}
-        {filteredTeams.length > 0 ? (
+        {albumView === "all" && filteredTeams.length > 0 ? (
           filteredTeams.map((team) => (
             <TeamGrid 
               key={team.code} 
@@ -486,6 +529,34 @@ export default function Dashboard({
               onStickerChange={handleStickerChange}
             />
           ))
+        ) : albumView === "missing" && missingTeams.length > 0 ? (
+          missingTeams.map((team) => (
+            <TeamGrid
+              key={team.code}
+              team={team}
+              missing={albumData?.missing || []}
+              forTrade={albumData?.forTrade || {}}
+              currentUser={currentUsername}
+              stickerNumbers={missingNumbersByTeam[team.code]}
+              onStickerChange={handleStickerChange}
+            />
+          ))
+        ) : albumView === "missing" ? (
+          <div className="text-center py-12 bg-white rounded-2xl border border-slate-200 shadow-sm">
+            <p className="text-slate-500 text-lg">
+              {missingEntries.length === 0
+                ? "¡No tienes cromos faltantes!"
+                : "No hay faltantes que coincidan con la búsqueda."}
+            </p>
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="mt-4 text-indigo-600 hover:text-indigo-800 font-medium underline"
+              >
+                Limpiar búsqueda
+              </button>
+            )}
+          </div>
         ) : (
           <div className="text-center py-12 bg-white rounded-2xl border border-slate-200 shadow-sm">
             <p className="text-slate-500 text-lg">

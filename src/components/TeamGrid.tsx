@@ -7,6 +7,7 @@ interface TeamGridProps {
   missing: string[];
   forTrade: Record<string, number>;
   currentUser: string; // <-- Agregamos esta línea
+  stickerNumbers?: number[];
   onStickerChange?: (
     code: string,
     status: 'missing' | 'owned' | 'forTrade',
@@ -19,9 +20,11 @@ export default function TeamGrid({
   missing,
   forTrade,
   currentUser,
+  stickerNumbers,
   onStickerChange,
 }: TeamGridProps) {
-  const stickerNumbers = Array.from({ length: team.stickersCount }, (_, i) => i + 1);
+  const numbersToShow =
+    stickerNumbers || Array.from({ length: team.stickersCount }, (_, i) => i + 1);
 
   return (
     <div className="mb-8 p-4 bg-white rounded-xl shadow-sm border border-gray-100">
@@ -38,7 +41,7 @@ export default function TeamGrid({
       </div>
       
       <div className="grid grid-cols-4 md:grid-cols-5 lg:grid-cols-10 gap-2">
-        {stickerNumbers.map((num) => {
+        {numbersToShow.map((num) => {
           const code = `${team.code}-${num}`;
           let status: 'missing' | 'owned' | 'forTrade' = 'owned'; 
           let count = 0;
